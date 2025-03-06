@@ -1,50 +1,48 @@
+require('dotenv').config(); // Load environment variables from .env file
+
 const express = require('express');
-const crypto = require('crypto');
+const cors = require('cors'); // Import cors
+const cookieParser = require('cookie-parser'); // Import cookie-parser
+const admin = require('firebase-admin');
+const bodyParser = require('body-parser');
+
+// Initialize Firebase
+const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString('utf8'));
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
 
 const app = express();
-const PORT = 4004;
 
-app.use(express.json());
+// Middleware
+app.use(cors({
+    origin: 'http://middleware:3001', // Allow requests from middleware
+    credentials: true, // Allow cookies to be sent
+}));
+app.use(bodyParser.json());
+app.use(cookieParser());
 
-// Mock Database for Partner Codes
-let partnerLinks = {};
+// Add caretaker route
+app.post('/api/caretaker/add', async (req, res) => {
+    const { patientId, name, relation, email, phone } = req.body;
 
-// Function to generate a random 6-character alphanumeric code
-const generatePartnerCode = () => {
-    return crypto.randomBytes(3).toString('hex').toUpperCase(); // Generates a 6-character hex string
-};
+    try {
+        // Add caretaker details to the "caretakers" collection
+        const caretakerRef = await db.collection('caretakers').add({
+            patientId,
+            name,
+            relation,
+            email,
+            phone,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
 
-// Generate a Partner Code for a User
-app.post('/partner/generate', (req, res) => {
-    const { userId } = req.body;
-
-    if (!userId) {
-        return res.status(400).json({ error: "User ID is required" });
+        console.log('Caretaker added with ID:', caretakerRef.id); // Debug: Log caretaker ID
+        res.json({ message: 'Caretaker added successfully', id: caretakerRef.id });
+    } catch (error) {
+        console.error('Error adding caretaker to Firebase:', error); // Log full error object
+        res.status(500).json({ error: 'Failed to add caretaker', details: error.message });
     }
-
-    const code = generatePartnerCode();
-    partnerLinks[code] = userId;
-
-    res.json({ message: "Partner code generated successfully", userId, partnerCode: code });
 });
 
-// Retrieve User ID from Partner Code
-app.get('/partner/:code', (req, res) => {
-    const { code } = req.params;
-    const userId = partnerLinks[code];
-
-    if (!userId) {
-        return res.status(404).json({ error: "Invalid or expired partner code" });
-    }
-
-    res.json({ message: "Partner code valid", userId });
-});
-
-// Health Check Endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: "Partner Service is running" });
-});
-
-app.listen(PORT, () => {
-    console.log(`Partner Service running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 4004;
+app.listen(PORT, () => console.log(`Caretaker Service running on port ${PORT}`));
