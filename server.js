@@ -43,7 +43,6 @@ app.post('/api/caretaker/add', async (req, res) => {
         res.status(500).json({ error: 'Failed to add caretaker', details: error.message });
     }
 });
-
 app.get('/api/caretaker/get', async (req, res) => {
     const { patientId } = req.query;
 
@@ -58,7 +57,7 @@ app.get('/api/caretaker/get', async (req, res) => {
 
         if (snapshot.empty) {
             console.log('No caretakers found for patientId:', patientId);
-            return res.json([]); // Return empty array if no caretakers
+            return res.json([]);
         }
 
         const caretakers = snapshot.docs.map(doc => ({
@@ -66,7 +65,7 @@ app.get('/api/caretaker/get', async (req, res) => {
             ...doc.data()
         }));
 
-        console.log('Caretakers retrieved:', caretakers); // Debug log
+        console.log('Caretakers retrieved:', caretakers);
         res.json(caretakers);
     } catch (error) {
         console.error('Error fetching caretakers from Firebase:', error);
@@ -82,7 +81,6 @@ app.post('/api/caretaker/update', async (req, res) => {
     }
 
     try {
-        // Verify the caretaker exists and belongs to the patientId
         const caretakerRef = db.collection('caretakers').doc(id);
         const doc = await caretakerRef.get();
 
@@ -95,20 +93,50 @@ app.post('/api/caretaker/update', async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized to update this caretaker' });
         }
 
-        // Update the caretaker document
         await caretakerRef.update({
             name,
             relation,
             phone,
             email,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp() // Optional: track update time
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log('Caretaker updated successfully:', { id }); // Debug log
+        console.log('Caretaker updated successfully:', { id });
         res.json({ message: 'Caretaker updated successfully' });
     } catch (error) {
         console.error('Error updating caretaker in Firebase:', error);
         res.status(500).json({ error: 'Failed to update caretaker', details: error.message });
+    }
+});
+
+// Delete a caretaker
+app.delete('/api/caretaker/delete', async (req, res) => {
+    const { id, patientId } = req.body;
+
+    if (!id || !patientId) {
+        return res.status(400).json({ error: 'id and patientId are required' });
+    }
+
+    try {
+        const caretakerRef = db.collection('caretakers').doc(id);
+        const doc = await caretakerRef.get();
+
+        if (!doc.exists) {
+            return res.status(404).json({ error: 'Caretaker not found' });
+        }
+
+        const caretakerData = doc.data();
+        if (caretakerData.patientId !== patientId) {
+            return res.status(403).json({ error: 'Unauthorized to delete this caretaker' });
+        }
+
+        await caretakerRef.delete();
+
+        console.log('Caretaker deleted successfully:', { id });
+        res.json({ message: 'Caretaker deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting caretaker from Firebase:', error);
+        res.status(500).json({ error: 'Failed to delete caretaker', details: error.message });
     }
 });
 
