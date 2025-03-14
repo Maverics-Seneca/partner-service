@@ -21,6 +21,36 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(cookieParser());
 
+async function logChange(action, userId, entity, entityId, entityName, details = {}) {
+    try {
+      // Fetch user name from users collection
+      let userName = 'Unknown';
+      try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          userName = userDoc.data().name || 'Unnamed User';
+        }
+      } catch (error) {
+        console.error(`Error fetching user ${userId}:`, error);
+      }
+  
+      const logEntry = {
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        action,
+        userId: userId || 'unknown',
+        userName,
+        entity,
+        entityId,
+        entityName: entityName || 'N/A',
+        details,
+      };
+      await db.collection('logs').add(logEntry);
+      console.log(`Logged: ${action} on ${entity} (${entityId}, ${entityName}) by ${userId} (${userName})`);
+    } catch (error) {
+      console.error('Error logging change:', error);
+    }
+  }
+
 // Add caretaker route
 app.post('/api/caretaker/add', async (req, res) => {
     const { patientId, name, relation, email, phone } = req.body;
@@ -36,6 +66,7 @@ app.post('/api/caretaker/add', async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
+        await logChange('CREATE', patientId, 'Caretaker', caretakerRef.id, name, { data: req.body });
         console.log('Caretaker added with ID:', caretakerRef.id); // Debug: Log caretaker ID
         res.json({ message: 'Caretaker added successfully', id: caretakerRef.id });
     } catch (error) {
@@ -101,6 +132,7 @@ app.post('/api/caretaker/update', async (req, res) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        await logChange('UPDATE', patientId, 'Caretaker', id, name, { oldData: caretakerData, newData: req.body });
         console.log('Caretaker updated successfully:', { id });
         res.json({ message: 'Caretaker updated successfully' });
     } catch (error) {
@@ -130,6 +162,7 @@ app.delete('/api/caretaker/delete', async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized to delete this caretaker' });
         }
 
+        await logChange('DELETE', patientId, 'Caretaker', id, caretakerData.name, { data: caretakerData });
         await caretakerRef.delete();
 
         console.log('Caretaker deleted successfully:', { id });
