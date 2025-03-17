@@ -74,6 +74,7 @@ app.post('/api/caretaker/add', async (req, res) => {
         res.status(500).json({ error: 'Failed to add caretaker', details: error.message });
     }
 });
+
 app.get('/api/caretaker/get', async (req, res) => {
     const { patientId } = req.query;
 
