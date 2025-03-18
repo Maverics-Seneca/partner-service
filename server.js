@@ -1,3 +1,4 @@
+// Import required modules
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -5,16 +6,33 @@ const cookieParser = require('cookie-parser');
 const admin = require('firebase-admin');
 const bodyParser = require('body-parser');
 
+// Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString('utf8'));
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+// Initialize Express app
 const app = express();
 
+// Middleware setup
 app.use(cors({ origin: 'http://middleware:3001', credentials: true }));
 app.use(bodyParser.json());
 app.use(cookieParser());
 
+// Constants
+const PORT = process.env.PORT || 4004;
+
+// Utility Functions
+
+/**
+ * Logs changes to Firestore for auditing purposes.
+ * @param {string} action - The action performed (e.g., CREATE, UPDATE, DELETE).
+ * @param {string} userId - The ID of the user performing the action.
+ * @param {string} entity - The entity being modified (e.g., 'Caretaker').
+ * @param {string} entityId - The ID of the entity being modified.
+ * @param {string} entityName - The name of the entity being modified.
+ * @param {object} details - Additional details about the change.
+ */
 async function logChange(action, userId, entity, entityId, entityName, details = {}) {
     try {
         let userName = 'Unknown';
@@ -38,8 +56,25 @@ async function logChange(action, userId, entity, entityId, entityName, details =
     }
 }
 
+// API Endpoints
+
+/**
+ * Add a new caretaker.
+ * @route POST /api/caretaker/add
+ * @param {string} patientId - The ID of the patient associated with the caretaker.
+ * @param {string} name - The name of the caretaker.
+ * @param {string} relation - The relationship of the caretaker to the patient.
+ * @param {string} email - The email of the caretaker.
+ * @param {string} phone - The phone number of the caretaker.
+ */
 app.post('/api/caretaker/add', async (req, res) => {
     const { patientId, name, relation, email, phone } = req.body;
+
+    // Input validation
+    if (!patientId || !name || !relation || !email || !phone) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+
     try {
         const caretakerRef = await db.collection('caretakers').add({
             patientId,
@@ -58,8 +93,15 @@ app.post('/api/caretaker/add', async (req, res) => {
     }
 });
 
+/**
+ * Get caretakers for a specific patient.
+ * @route GET /api/caretaker/get
+ * @param {string} patientId - The ID of the patient to fetch caretakers for.
+ */
 app.get('/api/caretaker/get', async (req, res) => {
     const { patientId } = req.query;
+
+    // Input validation
     if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
     try {
@@ -77,8 +119,20 @@ app.get('/api/caretaker/get', async (req, res) => {
     }
 });
 
+/**
+ * Update a caretaker's details.
+ * @route POST /api/caretaker/update
+ * @param {string} id - The ID of the caretaker to update.
+ * @param {string} patientId - The ID of the patient associated with the caretaker.
+ * @param {string} name - The updated name of the caretaker.
+ * @param {string} relation - The updated relationship of the caretaker.
+ * @param {string} phone - The updated phone number of the caretaker.
+ * @param {string} email - The updated email of the caretaker.
+ */
 app.post('/api/caretaker/update', async (req, res) => {
     const { id, patientId, name, relation, phone, email } = req.body;
+
+    // Input validation
     if (!id || !patientId) return res.status(400).json({ error: 'id and patientId are required' });
 
     try {
@@ -104,8 +158,16 @@ app.post('/api/caretaker/update', async (req, res) => {
     }
 });
 
+/**
+ * Delete a caretaker.
+ * @route DELETE /api/caretaker/delete
+ * @param {string} id - The ID of the caretaker to delete.
+ * @param {string} patientId - The ID of the patient associated with the caretaker.
+ */
 app.delete('/api/caretaker/delete', async (req, res) => {
     const { id, patientId } = req.body;
+
+    // Input validation
     if (!id || !patientId) return res.status(400).json({ error: 'id and patientId are required' });
 
     try {
@@ -125,13 +187,19 @@ app.delete('/api/caretaker/delete', async (req, res) => {
     }
 });
 
-// New endpoint for all caretakers in an organization
+/**
+ * Get all caretakers in an organization.
+ * @route GET /api/caretakers/all
+ * @param {string} organizationId - The ID of the organization to fetch caretakers for.
+ */
 app.get('/api/caretakers/all', async (req, res) => {
     const { organizationId } = req.query;
+
+    // Input validation
     if (!organizationId) return res.status(400).json({ error: 'organizationId is required' });
 
     try {
-        // Fetch all patients in the organization first
+        // Fetch all patients in the organization
         const patientsSnapshot = await db.collection('users')
             .where('organizationId', '==', organizationId)
             .where('role', '==', 'user')
@@ -157,5 +225,5 @@ app.get('/api/caretakers/all', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 4004;
+// Start the server
 app.listen(PORT, () => console.log(`Caretaker Service running on port ${PORT}`));
