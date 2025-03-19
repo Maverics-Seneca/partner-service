@@ -1,10 +1,13 @@
 // Import required modules
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const admin = require('firebase-admin');
+const dotenv = require('dotenv');
 const bodyParser = require('body-parser');
+
+// Load environment variables
+dotenv.config();
 
 // Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString('utf8'));
