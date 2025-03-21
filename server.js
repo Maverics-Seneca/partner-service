@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const admin = require('firebase-admin');
 const dotenv = require('dotenv');
 const bodyParser = require('body-parser');
+const crypto = require('crypto');
 
 // Load environment variables
 dotenv.config();
@@ -73,23 +74,35 @@ async function logChange(action, userId, entity, entityId, entityName, details =
 app.post('/api/caretaker/add', async (req, res) => {
     const { patientId, name, relation, email, phone } = req.body;
 
-    // Input validation
     if (!patientId || !name || !relation || !email || !phone) {
         return res.status(400).json({ error: 'All fields are required' });
     }
 
     try {
-        const caretakerRef = await db.collection('caretakers').add({
+        // Generate a secure random token/password
+        const token = crypto.randomBytes(6).toString('hex'); // e.g., 'a1b2c3d4e5f6'
+
+        const caretakerData = {
             patientId,
             name,
             relation,
             email,
             phone,
+            password: token, // Store generated token as caretaker's password
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        await logChange('CREATE', patientId, 'Caretaker', caretakerRef.id, name, { data: req.body });
+        };
+
+        const caretakerRef = await db.collection('caretakers').add(caretakerData);
+
+        await logChange('CREATE', patientId, 'Caretaker', caretakerRef.id, name, { data: caretakerData });
+        
         console.log('Caretaker added with ID:', caretakerRef.id);
-        res.json({ message: 'Caretaker added successfully', id: caretakerRef.id });
+        
+        res.json({ 
+            message: 'Caretaker added successfully', 
+            id: caretakerRef.id,
+            password: token  // return token/password in response
+        });
     } catch (error) {
         console.error('Error adding caretaker:', error.message);
         res.status(500).json({ error: 'Failed to add caretaker', details: error.message });
