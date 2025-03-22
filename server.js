@@ -63,6 +63,43 @@ async function logChange(action, userId, entity, entityId, entityName, details =
 // API Endpoints
 
 /**
+ * Fetch recent logs for an organization
+ * @route GET /api/logs
+ * @description Fetch logs for a given organization with an optional limit
+ */
+app.get('/api/logs', async (req, res) => {
+    const { organizationId, limit } = req.query;
+    console.log('Fetching logs for organizationId:', organizationId, 'with limit:', limit);
+
+    try {
+        if (!organizationId) {
+            return res.status(400).json({ error: 'organizationId is required' });
+        }
+
+        let query = db.collection('logs')
+            .where('organizationId', '==', organizationId)
+            .orderBy('timestamp', 'desc');
+
+        if (limit) {
+            query = query.limit(parseInt(limit));
+        }
+
+        const snapshot = await query.get();
+        if (snapshot.empty) {
+            console.log('No logs found for organizationId:', organizationId);
+            return res.json([]);
+        }
+
+        const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Logs retrieved:', logs);
+        res.json(logs);
+    } catch (error) {
+        console.error('Error fetching logs:', error.message);
+        res.status(500).json([]);
+    }
+});
+
+/**
  * Add a new caretaker.
  * @route POST /api/caretaker/add
  * @param {string} patientId - The ID of the patient associated with the caretaker.
