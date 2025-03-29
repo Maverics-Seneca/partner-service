@@ -90,12 +90,19 @@ app.get('/api/logs', async (req, res) => {
             return res.json([]);
         }
 
-        const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const logs = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                timestamp: data.timestamp ? data.timestamp.toDate() : null // Convert to JS Date
+            };
+        });
         console.log('Logs retrieved:', logs);
         res.json(logs);
     } catch (error) {
         console.error('Error fetching logs:', error.message);
-        res.status(500).json([]);
+        res.status(500).json([]); 
     }
 });
 
