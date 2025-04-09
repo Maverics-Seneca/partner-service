@@ -92,17 +92,17 @@ app.get('/api/logs', async (req, res) => {
 
         const logs = snapshot.docs.map(doc => {
             const data = doc.data();
+            const timestamp = data.timestamp ? data.timestamp.toDate() : null;
             return {
                 id: doc.id,
                 ...data,
-                timestamp: data.timestamp ? data.timestamp.toDate() : null // Convert to JS Date
+                timestamp
             };
         });
-        console.log('Logs retrieved:', logs);
         res.json(logs);
     } catch (error) {
         console.error('Error fetching logs:', error.message);
-        res.status(500).json([]); 
+        res.status(500).json([]);
     }
 });
 
@@ -139,11 +139,11 @@ app.post('/api/caretaker/add', async (req, res) => {
         const caretakerRef = await db.collection('caretakers').add(caretakerData);
 
         await logChange('CREATE', patientId, 'Caretaker', caretakerRef.id, name, { data: caretakerData });
-        
+
         console.log('Caretaker added with ID:', caretakerRef.id);
-        
-        res.json({ 
-            message: 'Caretaker added successfully', 
+
+        res.json({
+            message: 'Caretaker added successfully',
             id: caretakerRef.id,
             password: token  // return token/password in response
         });
