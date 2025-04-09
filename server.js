@@ -63,42 +63,66 @@ async function logChange(action, userId, entity, entityId, entityName, details =
 // API Endpoints
 
 /**
- * Fetch recent logs for an organization
+ * Fetch recent logs for an organization or user
  * @route GET /api/logs
- * @description Fetch logs for a given organization with an optional limit
+ * @description Fetch logs based on organizationId or all organizations linked to userId, with an optional limit
  */
 app.get('/api/logs', async (req, res) => {
-    const { organizationId, limit } = req.query;
-    console.log('Fetching logs for organizationId:', organizationId, 'with limit:', limit);
+    const { organizationId, userId, limit } = req.query;
+    console.log('Fetching logs with:', { organizationId, userId, limit });
 
     try {
-        if (!organizationId) {
-            return res.status(400).json({ error: 'organizationId is required' });
+        if (!userId) {
+            return res.status(400).json({ error: 'userId is required' });
         }
 
-        let query = db.collection('logs')
-            .where('organizationId', '==', organizationId)
-            .orderBy('timestamp', 'desc');
+        let logsQuery;
+
+        if (organizationId) {
+            // Case 1: Specific organizationId provided (e.g., for admins or users)
+            logsQuery = db.collection('logs')
+                .where('organizationId', '==', organizationId)
+                .orderBy('timestamp', 'desc');
+        } else {
+            // Case 2: No organizationId (e.g., for owners) - Fetch all organizations linked to userId
+            const orgSnapshot = await db.collection('organizations')
+                .where('userId', '==', userId)
+                .get();
+
+            if (orgSnapshot.empty) {
+                console.log('No organizations found for userId:', userId);
+                return res.json([]);
+            }
+
+            const organizationIds = orgSnapshot.docs.map(doc => doc.id);
+            console.log('Organizations for userId:', userId, 'are:', organizationIds);
+
+            logsQuery = db.collection('logs')
+                .where('organizationId', 'in', organizationIds.length > 0 ? organizationIds : ['none'])
+                .orderBy('timestamp', 'desc');
+        }
 
         if (limit) {
-            query = query.limit(parseInt(limit));
+            logsQuery = logsQuery.limit(parseInt(limit));
         }
 
-        const snapshot = await query.get();
+        const snapshot = await logsQuery.get();
         if (snapshot.empty) {
-            console.log('No logs found for organizationId:', organizationId);
+            console.log('No logs found for query');
             return res.json([]);
         }
 
         const logs = snapshot.docs.map(doc => {
             const data = doc.data();
-            const timestamp = data.timestamp ? data.timestamp.toDate() : null;
+            const timestamp = data.timestamp ? data.timestamp.toDate().toISOString() : null; // Ensure ISO string
             return {
                 id: doc.id,
                 ...data,
                 timestamp
             };
         });
+
+        console.log('Fetched logs:', logs);
         res.json(logs);
     } catch (error) {
         console.error('Error fetching logs:', error.message);
